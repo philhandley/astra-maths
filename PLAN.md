@@ -370,7 +370,7 @@ If time is tight, cut in this order: Three.js shapes, Shop Run, Rocket Landing, 
 
 ## 12. Deployment and the tablet
 
-As for Astra Finn (`C:\1 Astra Nova - Finn\DEPLOY.md`): a new public repository `astra-maths` under the same GitHub account, Pages from `main` at root, URL `https://philhandley.github.io/astra-maths/`. Relative paths everywhere. Commit with the GitHub no-reply address used for Astra Finn. Run `python tools/build_sw.py` before every push. On the tablet: open the link in Samsung Internet or Chrome, Add to Home screen or Install, open once online, then it works offline. The Claude Artifact route is the fallback for an instant link.
+Live since 11 Oct 2026 at `https://philhandley.github.io/astra-finn/maths/`, published as a folder of the Astra Finn Pages site, because a separate `astra-maths` repository has to be created on github.com first (`DEPLOY.md` has the steps to move it). Relative paths everywhere. Commit with the GitHub no-reply address used for Astra Finn. Run `python tools/build_sw.py` before every push. On the tablet: open the link in Samsung Internet or Chrome, Add to Home screen or Install, open once online, then it works offline. The Claude Artifact route is the fallback for an instant link.
 
 ---
 
