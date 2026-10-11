@@ -52,9 +52,9 @@
             o[0].click(); await sl(80); o[o.length - 1].click(); await sl(80);
             (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => /Reveal/.test(b.textContent))))?.click();
           } else if (s.type === 'question') {
-            const o = await waitFor(() => D().querySelectorAll('.choice').length && D().querySelectorAll('.choice'));
+            const o = await waitFor(() => D().querySelectorAll('.bq').length && D().querySelectorAll('.bq'));
             o[0].click(); await sl(80); o[1].click(); await sl(150);
-            (await waitFor(() => [...D().querySelectorAll('.turn .btn')].find(b => /other people/.test(b.textContent))))?.click();
+            (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => /other people/.test(b.textContent))))?.click();
           } else if (s.type === 'error') {
             const ls = await waitFor(() => D().querySelectorAll('.errline').length && D().querySelectorAll('.errline'));
             ls[s.wrong].click();

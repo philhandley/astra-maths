@@ -6,23 +6,27 @@
 <title>Arcade harness</title>
 <link rel="stylesheet" href="../css/app.css">
 <style>
-  body { overflow: hidden; }
-  .ah-bar { height: 80px; display: flex; align-items: center; gap: 14px; padding: 0 20px; border-bottom: 1px solid var(--line); font-size: 16px; color: var(--ink-2); background: #070b16; }
-  .ah-bar b { font-family: var(--font-display); color: var(--ink); font-size: 20px; margin-right: 10px; }
-  .ah-bar a { color: var(--ink-2); text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); }
-  .ah-bar a.on { color: #1a1205; background: var(--gold); border-color: var(--gold); }
+  body { overflow: hidden; background: #000; }
+  .ah-bar { height: 80px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid #1d2028; font-size: 16px; color: var(--ink-2); background: #000; }
+  .ah-bar b { font-family: var(--font-display); color: #fff; font-size: 20px; margin-right: 10px; }
+  .ah-bar a { color: var(--ink-2); text-decoration: none; padding: 8px 14px; border-radius: 12px; border: 2px solid #3a3f4d; background: #23262f; font-weight: 600; }
+  .ah-bar a.on { color: #1d1600; background: #ffcc33; border-color: #ffcc33; }
   .ah-host { position: relative; height: calc(100vh - 80px); max-height: 720px; }
+  body.bare .ah-bar { display: none; }
+  body.bare .ah-host { height: 100vh; max-height: none; }
 </style>
 </head>
 <body>
 <div class="ah-bar"><b>Arcade harness</b><span id="links"></span><span id="st" style="margin-left:auto"></span></div>
 <div class="ah-host" id="host"></div>
 <script type="module">
-  // Usage: dev/arcade.html?game=asteroids&level=2[&debug][&warp=8]  (debug exposes window.__arc; warp fast-forwards canvas games)
-  // Mounts one arcade game in a 1280x720 area with a stub ctx that logs to the console.
+  // Usage: dev/arcade.html?game=asteroids&level=2[&debug][&warp=8][&bare]
+  //   debug exposes window.__arc; warp fast-forwards canvas games; bare hides this bar so the game fills the
+  //   window like the in-app host (#/arcade/<id>). Mounts one arcade game with a stub ctx that logs to the console.
   const p = new URLSearchParams(location.search);
   const game = p.get('game') || 'asteroids';
   const level = Math.max(1, Math.min(3, +(p.get('level') || 1)));
+  if (p.has('bare')) document.body.classList.add('bare');
   const GAMES = ['asteroids', 'tiledock', 'landing', 'shoprun'];
   document.getElementById('links').innerHTML = GAMES.map(g => `<a href="?game=${g}&level=${level}" class="${g === game ? 'on' : ''}">${g}</a>`).join(' ');
   window.addEventListener('error', e => console.error('ARCADE ERROR:', e.message, e.filename, e.lineno));

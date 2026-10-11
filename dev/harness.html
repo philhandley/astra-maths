@@ -21,7 +21,8 @@
   .hw pre { white-space: pre-wrap; background: #0b1020; padding: 8px; border-radius: 8px; font-size: 13px; margin: 0; }
   .hw .btn.small { min-height: 36px; font-size: 15px; }
   .hw .stagewrap { position: relative; padding: 16px; }
-  .hw .console { position: absolute; inset: 16px; }
+  .hw .console { position: absolute; inset: 16px; margin: 0; }
+  .hw .stagewrap { background: #000; }
 </style>
 </head>
 <body>
@@ -69,6 +70,7 @@
     stage.replaceChildren();
     const ctx = { readonly: ro.checked, onChange: s => { console.log('STATE', JSON.stringify(s)); show(s); } };
     try {
+      document.querySelector('.console').classList.toggle('dark', mod.meta?.surface === 'dark');
       inst = mod.mount(stage, { ...props, ...(ro.checked ? { readonly: true } : {}) }, ctx);
       window.__w = inst;
       show(inst.getState());

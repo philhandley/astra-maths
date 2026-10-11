@@ -43,7 +43,7 @@ All in `js/core/`. Import with relative paths, for example `import { svg, onTap 
 - `makeRand(seed?)` returns `R` with `R.int(a, b)` inclusive, `R.pick(arr)`, `R.shuffle(arr)` (copy), `R.chance(p)`, `R.distinct(n, a, b)` (n different ints), `R.sample(arr, n)`. Generators always use `R`, never `Math.random`, so tests can be repeated.
 
 ### theme.js
-- `COL`: `{ ones: '#5fd4ff', tens: '#f2b544', hundreds: '#e879f9', a: '#f2b544', b: '#5fd4ff', ink: '#f3efe6', ink2: '#b9c0cf', ink3: '#7d869a', line: 'rgba(255,255,255,.14)', panel: '#121b33', panel2: '#18233f', good: '#6fe3a5', warn: '#ffb36b', bad: '#ff8a6b', blast: '#4f9dff', grid: '#2a6f9a' }`. `ones/tens/hundreds` are fixed app-wide: the same colour always means the same place value. `a/b` are the two counter colours for parts (gold then cyan).
+- `PAL` (named palette: red, yellow, blue, green, orange, pink, purple, teal, each with a `…Dark` outline shade) and `COL` (semantic tokens: `ones` blue, `tens` green, `hundreds` orange, `thousands` pink; counters `a` red and `b` yellow with `aDark`/`bDark`; `ink`, `ink2`, `ink3`, `line`, `lineStrong`, `surface`, `surface2`, `surface3`, `good`, `goodSoft`, `focus`, `focusSoft`; `dark`, `darkInk`, `blast`, `grid` for dark widgets). See section 7. `ones/tens/hundreds` are fixed app-wide: the same colour always means the same place value.
 - `FRAC`: eight fill colours for fraction pieces.
 - `FONT`: `{ display: "'Space Grotesk', system-ui, sans-serif", body: "'Inter', system-ui, sans-serif" }`.
 
@@ -111,8 +111,8 @@ So design state keys that make natural goals: `value`, `total`, `rows`, `size`, 
 
 | Widget | Owner | Key props | State |
 |---|---|---|---|
-| objects | core | `n`, `icon` (art name or `dot`), `arrange` (`row`, `rows`, `groups`, `scatter`, `dice`, `line`), `perRow`, `groups` (array of sizes), `colours` (array of counts per colour, gold then cyan), `crossed` (cross out the last k), `tappable` | `n`, `tapped` |
-| tensframe | core | `count`, `frames` (1 or 2), `colours` ([gold, cyan] counts), `twoColour` (show a brush toggle), `interactive`, `max` | `count`, `a`, `b` |
+| objects | core | `n`, `icon` (art name or `dot`), `arrange` (`row`, `rows`, `groups`, `scatter`, `dice`, `line`), `perRow`, `groups` (array of sizes), `colours` (array of counts per colour: red, yellow, blue, green), `crossed` (cross out the last k), `tappable` | `n`, `tapped` |
+| tensframe | core | `count`, `frames` (1 or 2), `colours` ([red, yellow] counts), `twoColour` (show a brush toggle), `interactive`, `max` | `count`, `a`, `b` |
 | numberline | number | `min`, `max`, `step`, `labels` (`all`, `ends`, `tens`, `fives`, `none`, or an array), `mode` (`display`, `hop`, `place`), `hopSize`, `start`, `hops` (array of `{from, to}` to draw), `marks` (values to dot), `value`, `markerArt` | `value`, `hops` (count), `pos` (last hop end), `placed` |
 | hundred | number | `start` (0 or 1), `highlight` (array), `pattern` (`{every: n, from: k}`), `hide` (array of numbers shown blank), `mode` (`display`, `tap`), `rows` | `selected` (last tapped), `taps` (array) |
 | placevalue | number | `tens`, `ones`, `hundreds`, `showHundreds`, `interactive`, `showDigits`, `showValue`, `showExpanded`, `max` | `hundreds`, `tens`, `ones`, `value` |
@@ -132,7 +132,7 @@ So design state keys that make natural goals: `value`, `total`, `rows`, `size`, 
 | charts | geometry | `kind` (`tally`, `pictogram`, `block`, `table`), `cats` (array of `{label, icon, value}`), `key`, `interactive`, `max` | `values` (array) |
 
 ### 3.4 CSS
-Do not edit `css/app.css`. Put widget CSS in a string and call `injectCSS('w-<name>', css)` at mount. Prefix classes with `w-<name>`. App tokens are available as CSS variables: `--ink`, `--ink-2`, `--ink-3`, `--gold`, `--cyan`, `--green`, `--line`, `--panel`, `--font-display`, `--font-body`.
+Do not edit `css/app.css`. Put widget CSS in a string and call `injectCSS('w-<name>', css)` at mount. Prefix classes with `w-<name>`. App tokens are available as CSS variables: `--s-ink`, `--s-ink-2`, `--s-ink-3`, `--s-line`, `--surface`, `--surface-2`, `--red`, `--yellow`, `--blue`, `--green`, `--orange`, `--pink`, `--purple`, `--font-display`, `--font-body`. Do not name widget classes `.btn`, `.card`, `.tile`, `.dots` or `.opt`: the app styles those.
 
 ## 4. Generators
 
@@ -299,3 +299,22 @@ Sub-step keys: `say` (lines), `goal` (widget state to reach), `input` + `answer`
 - Content: `python tools/check_content.py` from the project root validates every mission file (schema, IDs, widget and generator names, levels). It must print no errors for your missions.
 - Missions in the real app: `http://127.0.0.1:8100/?devcrew#/m/<id>/1/0` (tier 1, step 0). The core runner is built in parallel with your work; if it is not there yet, rely on the harness pages and the checker. Do not edit core files; report core bugs instead.
 - Headless screenshot from bash: `tools/shot.sh <name> "<path-and-query>"` saves a PNG and prints console lines.
+
+## 7. Style v2: the Synthesis look (applies to every widget and game)
+
+The app now looks like Synthesis Tutor: black chrome, a **white work surface** for the manipulative, bold flat colour, big clean numerals, quiet tactile controls. Study `Screenshots/IMG_4994.PNG` (place-value cards), `IMG_4996.PNG` (tile puzzle), `IMG_4997.PNG` (flashcards and number pad), `IMG_4998.PNG` (fraction blocks), `IMG_5001.PNG` (dot clouds), `IMG_5003.PNG` (division groups) and `IMG_5004.PNG` (coloured columns). Copy the feel, never the art or text.
+
+- **Surface.** Widgets draw on a white console (`COL.surface`). Never paint a dark background. Exceptions declare `meta.surface = 'dark'` and the console turns dark for them: only the Blaster (Tron grid, as in Synthesis) and full-screen arcade games.
+- **Ink.** Numbers, labels and outlines in `COL.ink` (#1b1e2e); secondary labels `COL.ink2`; faint `COL.ink3`; rules and empty-cell borders `COL.line` / `COL.lineStrong`; soft wells and trays `COL.surface2`.
+- **Type.** `FONT.display` is now Lexend (designed for young readers). Numerals 700 to 800 weight. Main numbers at least 40 px on screen, labels at least 22 px.
+- **Colour coding, fixed app-wide (import `PAL` and `COL` from theme.js):**
+  - place value: ones **blue** (`COL.ones`), tens **green** (`COL.tens`), hundreds **orange**, thousands **pink**: blocks, digits, column headings and expanded form all use them;
+  - two-colour counters: **red** (`COL.a`, outline `COL.aDark`) and **yellow** (`COL.b`, outline `COL.bDark`), like the double-sided counters used in UK classrooms;
+  - fractions: `FRAC` order purple, red, blue, orange, green…;
+  - everything else from `PAL` (red, yellow, blue, green, orange, pink, purple, teal).
+- **Words match colours.** Tutor lines, hints and explanations name colours with the palette words above. Never "gold" or "cyan" any more ("the green rods", "the blue cubes", "the red counters").
+- **Objects.** Flat fills. Main objects (frames, cards, shapes, coins, clock face) get a crisp 3 to 5 px `COL.ink` outline, like the Synthesis flash card and our tens frame; or are borderless solid colour blocks, like the Synthesis fraction blocks. Corner radius 12 to 18 px. No neon glows on white; no gradients except tiny highlights.
+- **Controls inside widgets.** White rounded rectangles with a 3 px `COL.line` border and a solid 5 px bottom edge in `COL.line` (pressed: moves down 4 px). Bold `COL.ink` text or icon. Primary actions: `PAL.blue` fill, white text, `PAL.blueDark` bottom edge. At least 56 px tall.
+- **Selection and success.** Selected: `COL.focus` blue outline with `COL.focusSoft` fill. Success: green (`COL.good`, `COL.goodSoft`). Never red for a mistake (red is only the counter colour).
+- **Space flavour stays in the art** (rockets, aliens, moon rocks from `art.js`, which now have dark outlines), not in dark backgrounds.
+- **Reference:** `js/widgets/tensframe.js` and `js/widgets/objects.js` are already restyled.
