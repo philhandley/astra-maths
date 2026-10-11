@@ -2,7 +2,7 @@
   "name": "Astra Maths",
   "short_name": "Astra Maths",
   "description": "A Year 1 and Year 2 maths academy for a crew of two.",
-  "id": "./",
+  "id": "/astra-maths/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
