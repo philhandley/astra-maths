@@ -2,50 +2,21 @@
 
 ## Where it lives
 
-Astra Maths is published inside the Astra Finn GitHub Pages site, in its own folder, so it has its own address, its own home-screen icon and its own offline copy:
+**https://philhandley.github.io/astra-maths/**
 
-**https://philhandley.github.io/astra-finn/maths/**
-
-The source of truth is this folder (`C:\1. Astra Nova Synthesis  - Maths Tutor`, its own git repository). Publishing copies the app files into `C:\1 Astra Nova - Finn\maths\` and pushes that repository.
+This folder is the GitHub repository `philhandley/astra-maths`, published by GitHub Pages from `main`. It has its own address outside Astra Finn, so the tablet installs it as its own app. (It used to live at `/astra-finn/maths/`, which now redirects here. Progress is kept: all the apps share the same site storage.)
 
 ## Updating it after a change
-
-From this folder:
 
 ```bash
 python tools/build_sw.py
 ```
 
 ```bash
-python tools/publish.py "C:/1 Astra Nova - Finn/maths"
-```
-
-Then in `C:\1 Astra Nova - Finn`:
-
-```bash
-git add maths && git commit -m "Update Astra Maths" && git push
+git add -A && git commit -m "Update Astra Maths" && git push
 ```
 
 GitHub Pages redeploys in about two minutes.
-
-## Moving it to its own address later (optional)
-
-If you would rather have `https://philhandley.github.io/astra-maths/`:
-
-1. On github.com, create a new **public** repository called `astra-maths` with every "Initialize" box unticked.
-2. In this folder run:
-
-```bash
-git remote add origin https://github.com/philhandley/astra-maths.git
-```
-
-```bash
-git push -u origin main
-```
-
-3. On GitHub: Settings, Pages, Source "Deploy from a branch", branch `main`, folder `/ (root)`, Save.
-
-Progress is stored per address in the tablet's browser, so moving address starts the patches afresh.
 
 ## Installing on the Samsung tablet
 
