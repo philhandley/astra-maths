@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Mission smoke test</title>
+<link rel="stylesheet" href="../css/app.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>body{overflow:auto;height:auto;padding:16px;font-size:15px} .p{color:#ff8a6b} .w{color:#ffb36b} #host{position:fixed;left:-2000px;top:0;width:860px;height:560px}</style>
+</head>
+<body>
+<h2>Mission smoke test</h2>
+<div id="out"></div>
+<div id="host"></div>
+<script type="module">
+  // Usage: dev/smoke.html            all missions
+  //        dev/smoke.html?only=a1,b4 some missions
+  // For every mission and tier: mounts each widget with its props (try/look/guess/question options),
+  // checks goal keys and {placeholders} against the widget's real state, and generates practice items at the tier's level.
+  import { makeRand } from '../js/core/rand.js';
+  const out = document.getElementById('out');
+  const host = document.getElementById('host');
+  const only = (new URLSearchParams(location.search).get('only') || '').split(',').filter(Boolean);
+  const P = [], W = [];
+  const prob = (m, s) => { P.push(`${m}: ${s}`); console.error('SMOKE PROBLEM', m + ':', s); };
+  const warn = (m, s) => { W.push(`${m}: ${s}`); console.warn('SMOKE WARN', m + ':', s); };
+  const sec = await (await fetch('../content/sectors.json')).json();
+  const ids = sec.sectors.flatMap(s => s.missions.map(m => m.id)).filter(id => !only.length || only.includes(id));
+  const wmods = {}, gmods = {};
+  const widget = async n => { if (!(n in wmods)) { try { wmods[n] = await import(`../js/widgets/${n}.js`); } catch (e) { wmods[n] = null; } } return wmods[n]; };
+  const gen = async spec => { const [st, nm] = spec.split('.'); if (!(st in gmods)) { try { gmods[st] = await import(`../js/gen/${st}.js`); } catch (e) { gmods[st] = null; } } return gmods[st] && gmods[st][nm]; };
+  const placeholders = t => [...String(t ?? '').matchAll(/\{([^{}]+)\}/g)].map(m => m[1].trim());
+  const CREW = ['commander', 'engineer'];
+  function checkTemplate(mid, where, lines, keys) {
+    for (const l of [].concat(lines || [])) for (const ph of placeholders(l)) {
+      const idents = ph.match(/[A-Za-z_]\w*/g) || [];
+      for (const id of idents) if (!keys.has(id) && !CREW.includes(id)) prob(mid, `${where}: placeholder {${ph}} uses "${id}" which is not in the widget state/props (${[...keys].join(', ')})`);
+    }
+  }
+  async function mountCheck(mid, where, name, props, readonly) {
+    const m = await widget(name);
+    if (!m) { prob(mid, `${where}: widget "${name}" missing`); return null; }
+    host.replaceChildren();
+    const el = document.createElement('div'); el.style.cssText = 'position:absolute;inset:0'; host.appendChild(el);
+    try {
+      const api = m.mount(el, { ...(props || {}), ...(readonly ? { readonly: true } : {}) }, { readonly, onChange() {} });
+      const st = api.getState();
+      return { api, st, m };
+    } catch (e) { prob(mid, `${where}: widget "${name}" threw on mount: ${e.message}`); return null; }
+  }
+  let missions = 0, items = 0;
+  for (const id of ids) {
+    let mis;
+    try { const r = await fetch(`../content/missions/${id}.json`); if (!r.ok) { warn(id, 'mission file missing'); continue; } mis = await r.json(); } catch (e) { prob(id, 'bad JSON ' + e.message); continue; }
+    missions++;
+    for (const tier of [1, 2, 3]) {
+      const steps = mis.steps.filter(s => !s.tiers || s.tiers.includes(tier));
+      for (const [i, s] of steps.entries()) {
+        const where = `t${tier} step ${i} (${s.type})`;
+        if ((s.type === 'look' || s.type === 'guess') && s.widget) {
+          const r = await mountCheck(id, where, s.widget, s.props, true);
+          if (r) { r.api.destroy(); checkTemplate(id, where, [...(s.lines || []), s.question, s.prompt, ...[].concat(s.reveal || [])], new Set([...Object.keys(s.props || {})])); }
+        }
+        if (s.type === 'question') for (const o of s.options || []) if (o.widget) { const r = await mountCheck(id, where + ' option', o.widget, o.props, true); r && r.api.destroy(); }
+        if (s.type === 'try' && tier === 1 || (s.type === 'try' && s.tiers)) {
+          const r = await mountCheck(id, where, s.widget, s.props, !!(s.props || {}).readonly);
+          if (!r) continue;
+          const keys = new Set([...Object.keys(s.props || {}), ...Object.keys(r.st)]);
+          for (const [j, sub] of (s.script || []).entries()) {
+            if (sub.set) { try { r.api.update(sub.set); Object.keys(r.api.getState()).forEach(k => keys.add(k)); Object.keys(sub.set).forEach(k => keys.add(k)); } catch (e) { prob(id, `${where} sub ${j}: update(set) threw ${e.message}`); } }
+            if (sub.goal) for (const k of Object.keys(sub.goal)) if (!(k in r.api.getState())) prob(id, `${where} sub ${j}: goal key "${k}" is not in ${s.widget} state (${Object.keys(r.api.getState()).join(', ')})`);
+            checkTemplate(id, `${where} sub ${j}`, [...(sub.say || []), ...(sub.then || []), sub.caption, typeof sub.answer === 'string' ? sub.answer : ''], keys);
+          }
+          r.api.destroy();
+        }
+        if (s.type === 'practise') {
+          for (const spec of [].concat(s.gen || [])) {
+            const g = await gen(spec);
+            if (!g) { prob(id, `${where}: generator ${spec} missing`); continue; }
+            const lv = Array.isArray(s.levels) ? s.levels[tier - 1] : (s.level || 1) + tier - 1;
+            if (lv > (g.levels || 1)) prob(id, `${where}: level ${lv} > ${spec} max ${g.levels}`);
+            for (let k = 0; k < 6; k++) {
+              let it;
+              try { it = g.make(Math.min(lv, g.levels || 1), makeRand(k * 31 + tier), s.params || {}); } catch (e) { prob(id, `${where}: ${spec} threw ${e.message}`); break; }
+              items++;
+              if (it.widget) {
+                const r = await mountCheck(id, `${where} ${spec}`, it.widget, it.props, it.input !== 'widget');
+                if (r) {
+                  if (it.input === 'widget' && it.goal) for (const gk of Object.keys(it.goal)) if (!(gk in r.st)) prob(id, `${where} ${spec}: goal key "${gk}" not in ${it.widget} state`);
+                  r.api.destroy();
+                }
+              }
+              if (it.hintWidget) { const r = await mountCheck(id, `${where} ${spec} hintWidget`, it.hintWidget.widget, it.hintWidget.props, true); r && r.api.destroy(); }
+            }
+          }
+        }
+      }
+    }
+  }
+  const sum = `SMOKE SUMMARY missions=${missions} items=${items} problems=${P.length} warnings=${W.length}`;
+  out.innerHTML = `<p><b>${sum}</b></p>` + P.map(p => `<div class="p">${p.replace(/</g, '&lt;')}</div>`).join('') + W.map(w => `<div class="w">${w.replace(/</g, '&lt;')}</div>`).join('');
+  console.log(sum);
+</script>
+</body>
+</html>

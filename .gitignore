@@ -1,0 +1,11 @@
+# Local-only files
+.claude/
+*.log
+Thumbs.db
+desktop.ini
+artifact.html
+dev/test-*.html
+!dev/test-sw.html
+
+# Synthesis screenshots: other people's product and children. Never publish.
+Screenshots/

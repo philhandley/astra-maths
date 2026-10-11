@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Autoplay</title>
+<style>body{margin:0;background:#05070d;color:#f3efe6;font:14px/1.4 system-ui} #log{position:fixed;right:0;top:0;width:420px;height:100vh;overflow:auto;padding:8px;box-sizing:border-box} iframe{width:1280px;height:800px;border:0} .p{color:#ff8a6b}</style>
+</head>
+<body>
+<iframe id="f"></iframe>
+<div id="log"></div>
+<script type="module">
+  // Usage: dev/autoplay.html?ids=a1,b4&tiers=1,2  (default: every mission, tier 1)
+  // Drives each mission in the real runner with read-aloud off: answers practice items correctly (one deliberate
+  // miss per practice step to exercise hints and re-teach), skips hands-on goals, votes in Big Questions,
+  // finds the Engineer's slip, and records any console errors.
+  const q = new URLSearchParams(location.search);
+  const sec = await (await fetch('../content/sectors.json')).json();
+  const ids = (q.get('ids') || sec.sectors.flatMap(s => s.missions.map(m => m.id)).join(',')).split(',').filter(Boolean);
+  const tiers = (q.get('tiers') || '1').split(',').map(Number);
+  const f = document.getElementById('f');
+  const logEl = document.getElementById('log');
+  const log = (t, cls = '') => { const d = document.createElement('div'); d.className = cls; d.textContent = t; logEl.appendChild(d); logEl.scrollTop = 1e9; console.log('AUTOPLAY', t); };
+  const sl = ms => new Promise(r => setTimeout(r, ms));
+  localStorage.setItem('astramaths.v1', JSON.stringify({ crew: { commander: 'Finn', engineer: 'Dad' }, autoRead: false, done: {}, facts: {}, log: [], stars: 0, levels: {}, check: { at: 1, skip: [] }, arcade: {}, quick: {}, mod: {} }));
+  let errors = [];
+  const problems = [];
+  async function waitFor(fn, ms = 12000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) { /* retry */ } await sl(60); } return null; }
+  for (const id of ids) {
+    let mis;
+    try { mis = await (await fetch(id.startsWith('zz') ? `${id}.json` : `../content/missions/${id}.json`)).json(); } catch (e) { log(`${id}: no mission file`, 'p'); continue; }
+    for (const tier of tiers) {
+      const steps = mis.steps.filter(s => !s.tiers || s.tiers.includes(tier));
+      errors = [];
+      f.src = `../index.html?devcrew&run=${Math.random().toString(36).slice(2)}${id.startsWith('zz') ? '&devmission=' + id : ''}#/m/${id}/${tier}/0`;
+      await new Promise(r => { f.onload = r; });
+      const W = f.contentWindow;
+      W.addEventListener('error', e => errors.push(String(e.message)));
+      W.addEventListener('unhandledrejection', e => errors.push(String(e.reason && (e.reason.message || e.reason))));
+      const origErr = W.console.error.bind(W.console);
+      W.console.error = (...a) => { errors.push(a.map(String).join(' ')); origErr(...a); };
+      const origWarn = W.console.warn.bind(W.console);
+      W.console.warn = (...a) => { if (/TEMPLATE unresolved/.test(a[0])) errors.push(a.map(String).join(' ')); origWarn(...a); };
+      const D = () => W.document;
+      await waitFor(() => D().querySelector('.runner .stage .step'));
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        if (W.location.hash !== `#/m/${id}/${tier}/${i}`) { W.location.hash = `#/m/${id}/${tier}/${i}`; await sl(250); }
+        await sl(250);
+        try {
+          if (s.type === 'guess') {
+            const o = await waitFor(() => D().querySelectorAll('.console .opt').length && D().querySelectorAll('.console .opt'));
+            o[0].click(); await sl(80); o[o.length - 1].click(); await sl(80);
+            (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => /Reveal/.test(b.textContent))))?.click();
+          } else if (s.type === 'question') {
+            const o = await waitFor(() => D().querySelectorAll('.choice').length && D().querySelectorAll('.choice'));
+            o[0].click(); await sl(80); o[1].click(); await sl(150);
+            (await waitFor(() => [...D().querySelectorAll('.turn .btn')].find(b => /other people/.test(b.textContent))))?.click();
+          } else if (s.type === 'error') {
+            const ls = await waitFor(() => D().querySelectorAll('.errline').length && D().querySelectorAll('.errline'));
+            ls[s.wrong].click();
+          } else if (s.type === 'try') {
+            for (let j = 0; j < (s.script || []).length; j++) {
+              const t0 = Date.now();
+              while (Date.now() - t0 < 15000) {
+                await sl(120);
+                const it = W.__astraItem;
+                const pad = D().querySelector('.numpad:not(.locked)');
+                const opts = [...D().querySelectorAll('.console .opt:not(.tried)')];
+                const acts = [...D().querySelectorAll('.tutor .actions .btn')];
+                const btn = acts.find(b => /Got it|Next/.test(b.textContent));
+                if (btn) { btn.click(); break; }
+                if (pad && it && it.input === 'numpad') { for (const ch of String(it.answer)) D().querySelector(`.numpad [data-k="${ch}"]`)?.click(); D().querySelector('.numpad [data-k="ok"]').click(); await sl(900); break; }
+                if (opts.length && it && it.input === 'choice') { const b = opts.find(o => String(o.dataset.v).toLowerCase() === String(it.answer).toLowerCase()); (b || opts[0]).click(); await sl(900); break; }
+                if (W.__astraSkip) { W.__astraSkip(); W.__astraSkip = null; await sl(200); break; }
+                if (D().querySelector('.next-btn.glow')) break;
+              }
+            }
+            await waitFor(() => D().querySelector('.next-btn.glow'), 8000);
+          } else if (s.type === 'practise') {
+            let last = null, n = 0, missed = false;
+            const t0 = Date.now();
+            while (!D().querySelector('.next-btn.glow') && Date.now() - t0 < 90000) {
+              const it = await waitFor(() => (W.__astraItem && W.__astraItem !== last ? W.__astraItem : null) || D().querySelector('.next-btn.glow'), 8000);
+              if (!it || it === true || it.nodeType) break;
+              last = it; n++;
+              await sl(200);
+              const miss = !missed && n === 2;
+              if (it.input === 'numpad') {
+                const typeV = async v => { for (const ch of String(v)) D().querySelector(`.numpad [data-k="${ch === ':' ? ':' : ch}"]`)?.click(); D().querySelector('.numpad [data-k="ok"]')?.click(); await sl(400); };
+                if (miss) { missed = true; await typeV(String(it.answer) === '99' ? 98 : 99); await typeV(String(it.answer) === '97' ? 96 : 97); (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => /Got it/.test(b.textContent))))?.click(); continue; }
+                await typeV(it.answer);
+              } else if (it.input === 'choice') {
+                const opts = [...D().querySelectorAll('.console .opt')];
+                const b = opts.find(o => String(o.dataset.v).toLowerCase() === String(it.answer).toLowerCase());
+                if (!b) problems.push(`${id} t${tier}: choice answer ${it.answer} not among buttons`);
+                (b || opts[0])?.click();
+              } else if (it.input === 'order') {
+                const opts = [...D().querySelectorAll('.console .opt')];
+                for (const v of it.answer) { const b = opts.find(o => o.textContent.trim() === String((it.options.find(x => String(x?.value ?? x) === String(v))?.label) ?? v)); b?.click(); await sl(60); }
+              } else if (it.input === 'widget') {
+                const chk = await waitFor(() => [...D().querySelectorAll('.console .btn')].find(b => /Check/.test(b.textContent)));
+                chk?.click(); await sl(250); chk?.click();
+                (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => /Got it/.test(b.textContent))))?.click();
+              } else {
+                [...D().querySelectorAll('.console .btn')].find(b => /Next/.test(b.textContent))?.click();
+              }
+              await sl(300);
+            }
+          }
+        } catch (e) { errors.push('autoplay: ' + e.message); }
+        await sl(150);
+      }
+      const finished = !!D().querySelector('.finish');
+      const errs = [...new Set(errors)].filter(e => !/manifest|favicon/i.test(e));
+      if (!finished) problems.push(`${id} t${tier}: did not reach the finish screen`);
+      errs.forEach(e => problems.push(`${id} t${tier}: ${e}`));
+      log(`${id} t${tier}: ${finished ? 'finished' : 'NOT FINISHED'}${errs.length ? ' · ' + errs.length + ' errors' : ''}`, errs.length || !finished ? 'p' : '');
+    }
+  }
+  problems.forEach(p => log(p, 'p'));
+  log(`AUTOPLAY SUMMARY runs=${ids.length * tiers.length} problems=${problems.length}`);
+</script>
+</body>
+</html>

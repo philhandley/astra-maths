@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Widget harness</title>
+<link rel="stylesheet" href="../css/app.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  body { overflow: auto; }
+  .hw { display: grid; grid-template-columns: 1fr 340px; height: 100vh; }
+  .hw .left { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+  .hw .bar { padding: 8px 14px; font-size: 15px; color: var(--ink-2); border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .hw .side { border-left: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; overflow: auto; }
+  .hw textarea { width: 100%; min-height: 140px; background: #0b1020; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; font: 13px/1.4 monospace; padding: 8px; }
+  .hw pre { white-space: pre-wrap; background: #0b1020; padding: 8px; border-radius: 8px; font-size: 13px; margin: 0; }
+  .hw .btn.small { min-height: 36px; font-size: 15px; }
+  .hw .stagewrap { position: relative; padding: 16px; }
+  .hw .console { position: absolute; inset: 16px; }
+</style>
+</head>
+<body>
+<div class="hw">
+  <div class="left">
+    <div class="bar">widget: <b id="name"></b><span id="status"></span>
+      <label><input type="checkbox" id="ro"> readonly</label></div>
+    <div class="stagewrap"><div class="console"><div class="cap" id="cap"></div><div class="wbox" id="wbox"><div class="widget" id="stage"></div></div><div class="inrow"></div></div></div>
+  </div>
+  <div class="side">
+    <div><b>props</b> (JSON, applied with update())</div>
+    <textarea id="props"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn small" id="upd">update(props)</button>
+      <button class="btn small ghost" id="remount">remount</button>
+      <button class="btn small ghost" id="ans">showAnswer</button>
+    </div>
+    <div><b>showAnswer arg</b> (JSON)</div>
+    <textarea id="ansarg" style="min-height:40px"></textarea>
+    <div><b>getState()</b></div>
+    <pre id="state"></pre>
+    <div class="faint">Usage: ?widget=name&amp;props=&lt;urlencoded JSON&gt;&amp;readonly&amp;cap=caption</div>
+  </div>
+</div>
+<script type="module">
+  const p = new URLSearchParams(location.search);
+  const name = p.get('widget') || 'tensframe';
+  document.getElementById('name').textContent = name;
+  document.getElementById('cap').textContent = p.get('cap') || '';
+  window.addEventListener('error', e => console.error('HARNESS ERROR:', e.message, e.filename, e.lineno));
+  window.addEventListener('unhandledrejection', e => console.error('HARNESS REJECTION:', e.reason && (e.reason.stack || e.reason)));
+  const stage = document.getElementById('stage');
+  const stateEl = document.getElementById('state');
+  const ta = document.getElementById('props');
+  const ro = document.getElementById('ro');
+  ro.checked = p.has('readonly');
+  let mod, inst;
+  let props = {};
+  try { mod = await import(`../js/widgets/${name}.js`); } catch (e) { console.error('HARNESS IMPORT FAILED', e.stack || e); }
+  props = p.get('props') ? JSON.parse(p.get('props')) : (mod?.meta?.playground || {});
+  ta.value = JSON.stringify(props, null, 1);
+  const show = s => { stateEl.textContent = JSON.stringify(s, null, 1); };
+  function mountIt() {
+    try { inst && inst.destroy(); } catch (e) { console.error('destroy failed', e); }
+    stage.replaceChildren();
+    const ctx = { readonly: ro.checked, onChange: s => { console.log('STATE', JSON.stringify(s)); show(s); } };
+    try {
+      inst = mod.mount(stage, { ...props, ...(ro.checked ? { readonly: true } : {}) }, ctx);
+      window.__w = inst;
+      show(inst.getState());
+      console.log('MOUNTED', name, JSON.stringify(inst.getState()));
+    } catch (e) { console.error('HARNESS MOUNT FAILED', e.stack || e); }
+  }
+  if (mod) mountIt();
+  document.getElementById('upd').onclick = () => {
+    try { const np = JSON.parse(ta.value); props = { ...props, ...np }; inst.update(np); show(inst.getState()); console.log('UPDATED', JSON.stringify(inst.getState())); }
+    catch (e) { console.error('update failed', e.stack || e); }
+  };
+  document.getElementById('remount').onclick = () => { try { props = JSON.parse(ta.value); } catch (e) { /* keep */ } mountIt(); };
+  document.getElementById('ans').onclick = () => {
+    let a; try { a = JSON.parse(document.getElementById('ansarg').value || 'null'); } catch (e) { a = document.getElementById('ansarg').value; }
+    if (inst.showAnswer) { inst.showAnswer(a); setTimeout(() => show(inst.getState()), 600); } else console.log('no showAnswer');
+  };
+  ro.onchange = mountIt;
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>sw test</title>
+<script type="module">
+const log = (...a) => console.log('SWTEST', ...a);
+try {
+  const reg = await navigator.serviceWorker.register('../sw.js', { scope: '../' });
+  log('registered', reg.scope);
+  const sw = reg.installing || reg.waiting || reg.active;
+  let ready = sw.state === 'activated';
+  sw.addEventListener('statechange', () => { log('state', sw.state); if (sw.state === 'activated' || sw.state === 'redundant') ready = true; });
+  // On the slow test server, waiting on /__slow keeps headless virtual time from running out while the worker caches.
+  for (let i = 0; i < 90 && !ready; i++) { try { await fetch('/__slow?' + i, { cache: 'no-store' }); } catch (e) { await new Promise(r => setTimeout(r, 1000)); } }
+  log('final state', sw.state);
+  const keys = await caches.keys();
+  const c = await caches.open(keys.find(k => k.startsWith('astramaths')));
+  const n = (await c.keys()).length;
+  const has = async u => !!(await c.match(new URL(u, location.href).href));
+  log('cache', keys.join(','), 'entries', n,
+    'shell', await has('../'), 'app', await has('../js/app.js'), 'blaster', await has('../js/widgets/blaster.js'),
+    'mission', await has('../content/missions/a1.json'), 'gen', await has('../js/gen/addsub.js'), 'arcade', await has('../js/arcade/asteroids.js'),
+    'icon', await has('../assets/icons/icon-192.png'),
+    'three', await has('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js'));
+} catch (e) { log('ERROR', e.message); }
+</script>

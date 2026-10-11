@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arcade harness</title>
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  body { overflow: hidden; }
+  .ah-bar { height: 80px; display: flex; align-items: center; gap: 14px; padding: 0 20px; border-bottom: 1px solid var(--line); font-size: 16px; color: var(--ink-2); background: #070b16; }
+  .ah-bar b { font-family: var(--font-display); color: var(--ink); font-size: 20px; margin-right: 10px; }
+  .ah-bar a { color: var(--ink-2); text-decoration: none; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); }
+  .ah-bar a.on { color: #1a1205; background: var(--gold); border-color: var(--gold); }
+  .ah-host { position: relative; height: calc(100vh - 80px); max-height: 720px; }
+</style>
+</head>
+<body>
+<div class="ah-bar"><b>Arcade harness</b><span id="links"></span><span id="st" style="margin-left:auto"></span></div>
+<div class="ah-host" id="host"></div>
+<script type="module">
+  // Usage: dev/arcade.html?game=asteroids&level=2[&debug][&warp=8]  (debug exposes window.__arc; warp fast-forwards canvas games)
+  // Mounts one arcade game in a 1280x720 area with a stub ctx that logs to the console.
+  const p = new URLSearchParams(location.search);
+  const game = p.get('game') || 'asteroids';
+  const level = Math.max(1, Math.min(3, +(p.get('level') || 1)));
+  const GAMES = ['asteroids', 'tiledock', 'landing', 'shoprun'];
+  document.getElementById('links').innerHTML = GAMES.map(g => `<a href="?game=${g}&level=${level}" class="${g === game ? 'on' : ''}">${g}</a>`).join(' ');
+  window.addEventListener('error', e => console.error('ARCADE ERROR:', e.message, e.filename, e.lineno));
+  window.addEventListener('unhandledrejection', e => console.error('ARCADE REJECTION:', e.reason && (e.reason.stack || e.reason)));
+  const key = k => `arc.${game}.${k}`;
+  const ctx = {
+    level,
+    debug: p.has('debug'),
+    crew: { commander: 'Finn', engineer: 'Dad' },
+    sfx: n => console.log('SFX', n),
+    say: t => console.log('SAY', t),
+    save: (k, v) => { try { localStorage.setItem(key(k), JSON.stringify(v)); } catch (e) { /* ignore */ } console.log('SAVE', k, JSON.stringify(v)); },
+    load: k => { try { const v = localStorage.getItem(key(k)); return v === null ? null : JSON.parse(v); } catch (e) { return null; } },
+    recordFact: (k, ok) => console.log('FACT', k, ok),
+    onExit: () => console.log('EXIT'),
+  };
+  window.__ctx = ctx;
+  try {
+    const mod = await import(`../js/arcade/${game}.js`);
+    const host = document.getElementById('host');
+    window.__game = mod.mount(host, ctx);
+    window.__mod = mod;
+    document.getElementById('st').textContent = `${mod.meta.title} · level ${level}`;
+    if (p.has('warp') && window.__arc && window.__arc.warp) window.__arc.warp(+p.get('warp') || 6);
+    console.log('ARCADE READY', mod.meta.id, JSON.stringify(mod.meta));
+  } catch (e) { console.error('ARCADE MOUNT FAILED', e.stack || e); }
+</script>
+</body>
+</html>

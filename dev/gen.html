@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Generator check</title>
+<link rel="stylesheet" href="../css/app.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  body { overflow: auto; height: auto; }
+  .g { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }
+  .it { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--panel); font-size: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .it.bad { border-color: #ff8a6b; }
+  .it .cap { font-family: var(--font-display); font-size: 30px; font-weight: 700; }
+  .it .mw { position: relative; height: 240px; border-radius: 10px; border: 1px solid var(--line); background: rgba(5,9,20,.45); }
+  .it .mw > div { position: absolute; inset: 0; }
+  .it code { font-size: 13px; color: var(--ink-2); white-space: pre-wrap; }
+  .prob { color: #ff8a6b; font-weight: 600; }
+  .warn { color: #ffb36b; }
+  h2 { font-size: 24px; }
+</style>
+</head>
+<body>
+<div class="g">
+  <h2 id="title"></h2>
+  <div id="summary" class="muted"></div>
+  <div class="items" id="items"></div>
+</div>
+<script type="module">
+  // Usage: dev/gen.html?gen=<strand>.<name>&level=<n>&n=<count>&seed=<s>
+  //        dev/gen.html?gen=<strand>&all=1   (every generator in the file, every level, 12 items each, no rendering)
+  import { makeRand } from '../js/core/rand.js';
+  const p = new URLSearchParams(location.search);
+  const spec = p.get('gen') || '';
+  const [strand, name] = spec.split('.');
+  const N = +(p.get('n') || 12);
+  const seed = +(p.get('seed') || 1);
+  const all = p.has('all');
+  const render = !all && !p.has('norender');
+  document.getElementById('title').textContent = spec + (all ? ' (all generators, all levels)' : ` level ${p.get('level') || 1}`);
+  window.addEventListener('error', e => console.error('GEN PROBLEM page error:', e.message, e.filename, e.lineno));
+  const INPUTS = ['numpad', 'choice', 'widget', 'order', 'none'];
+  const widgetCache = {};
+  async function widgetOk(w) {
+    if (!(w in widgetCache)) {
+      try { widgetCache[w] = await import(`../js/widgets/${w}.js`); } catch (e) { widgetCache[w] = null; }
+    }
+    return widgetCache[w];
+  }
+  const val = o => (o && typeof o === 'object' && 'value' in o ? o.value : o);
+  const same = (a, b) => String(a) === String(b);
+  async function check(item, path = 'item') {
+    const probs = [], warns = [];
+    if (!item || typeof item !== 'object') return { probs: [`${path}: not an object`], warns };
+    if (!Array.isArray(item.lines) || !item.lines.length) probs.push(`${path}: lines missing`);
+    else {
+      if (item.lines.length > 3) warns.push(`${path}: more than 3 lines`);
+      item.lines.forEach(l => { if (typeof l !== 'string' || !l.trim()) probs.push(`${path}: empty line`); else if (l.split(/\s+/).length > 14) warns.push(`${path}: long line "${l}"`); });
+    }
+    const input = item.input || 'numpad';
+    if (!INPUTS.includes(input)) probs.push(`${path}: bad input ${input}`);
+    if (input === 'numpad') {
+      if (item.answer === undefined || item.answer === null || item.answer === '') probs.push(`${path}: numpad answer missing`);
+      else if (typeof item.answer === 'number' && (!Number.isInteger(item.answer) || item.answer < 0)) probs.push(`${path}: numpad answer must be a whole number >= 0 (${item.answer})`);
+      else if (typeof item.answer === 'string' && !/^\d+(:\d\d)?$/.test(item.answer)) probs.push(`${path}: numpad string answer must be digits or h:mm (${item.answer})`);
+    }
+    if (input === 'choice') {
+      if (!Array.isArray(item.options) || item.options.length < 2) probs.push(`${path}: choice needs 2+ options`);
+      else {
+        const vals = item.options.map(val);
+        if (!vals.some(v => same(v, item.answer))) probs.push(`${path}: answer ${JSON.stringify(item.answer)} not in options ${JSON.stringify(vals)}`);
+        if (new Set(vals.map(String)).size !== vals.length) probs.push(`${path}: duplicate options ${JSON.stringify(vals)}`);
+      }
+    }
+    if (input === 'order') {
+      if (!Array.isArray(item.answer) || !Array.isArray(item.options)) probs.push(`${path}: order needs options and answer arrays`);
+      else if (item.answer.length !== item.options.length) probs.push(`${path}: order answer length differs from options`);
+    }
+    if (input === 'widget') {
+      if (!item.widget) probs.push(`${path}: widget input without widget`);
+      if (!item.goal || typeof item.goal !== 'object') probs.push(`${path}: widget input needs goal`);
+    }
+    if (item.widget && !(await widgetOk(item.widget))) probs.push(`${path}: widget "${item.widget}" not found`);
+    if (item.hintWidget && item.hintWidget.widget && !(await widgetOk(item.hintWidget.widget))) probs.push(`${path}: hintWidget "${item.hintWidget.widget}" not found`);
+    if (!Array.isArray(item.hint) || !item.hint.length) warns.push(`${path}: no hint`);
+    if (!Array.isArray(item.explain) || !item.explain.length) warns.push(`${path}: no explain`);
+    if ((input === 'numpad') && item.answer !== undefined) {
+      const txt = [...(item.lines || []), item.caption || ''].join(' ');
+      const re = new RegExp(`(^|[^\\d:])${String(item.answer).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\d:])`);
+      if (re.test(txt)) warns.push(`${path}: answer ${item.answer} appears in lines or caption (check it isn't given away)`);
+    }
+    if (item.reteach) { const r = await check(item.reteach, path + '.reteach'); probs.push(...r.probs); warns.push(...r.warns); }
+    return { probs, warns };
+  }
+  async function mini(host, item) {
+    if (!item.widget) return;
+    const m = await widgetOk(item.widget);
+    if (!m) return;
+    try { m.mount(host, { ...(item.props || {}), readonly: item.input !== 'widget' ? true : (item.props || {}).readonly }, { readonly: false, onChange() {} }); }
+    catch (e) { console.error('GEN PROBLEM widget mount', item.widget, e.stack || e); host.textContent = 'mount failed: ' + e.message; }
+  }
+  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  let mod;
+  try { mod = await import(`../js/gen/${strand}.js`); } catch (e) { console.error('GEN PROBLEM import failed', strand, e.stack || e); }
+  const names = all ? Object.keys(mod || {}).filter(k => mod[k] && typeof mod[k].make === 'function') : [name];
+  let total = 0, bad = 0, warnN = 0;
+  const box = document.getElementById('items');
+  for (const nm of names) {
+    const g = mod && mod[nm];
+    if (!g || typeof g.make !== 'function') { console.error('GEN PROBLEM no generator', strand + '.' + nm); bad++; continue; }
+    if (!Number.isInteger(g.levels) || g.levels < 1) { console.error('GEN PROBLEM', nm, 'levels must be an integer >= 1'); bad++; }
+    const levels = all ? Array.from({ length: g.levels || 1 }, (_, i) => i + 1) : [+(p.get('level') || 1)];
+    for (const lv of levels) {
+      const count = all ? 12 : N;
+      for (let i = 0; i < count; i++) {
+        let item;
+        try { item = g.make(lv, makeRand(seed * 1000 + i), {}); } catch (e) { console.error('GEN PROBLEM', nm, 'level', lv, 'threw', e.stack || e); bad++; continue; }
+        total++;
+        const { probs, warns } = await check(item);
+        if (probs.length) { bad++; probs.forEach(pr => console.error('GEN PROBLEM', `${strand}.${nm} L${lv} #${i}:`, pr)); }
+        if (warns.length) { warnN++; if (!all) warns.forEach(w => console.warn('GEN WARN', `${strand}.${nm} L${lv} #${i}:`, w)); }
+        if (render) {
+          const card = document.createElement('div');
+          card.className = 'it' + (probs.length ? ' bad' : '');
+          card.innerHTML = `<div class="faint">#${i} · L${lv} · ${esc(item.input || 'numpad')}${item.fact ? ' · fact ' + esc(item.fact) : ''}</div>
+            ${(item.lines || []).map(l => `<div>${esc(l)}</div>`).join('')}
+            ${item.caption ? `<div class="cap">${esc(item.caption)}</div>` : ''}
+            ${item.widget ? `<div class="mw"><div></div></div>` : ''}
+            <div><b>answer:</b> ${esc(JSON.stringify(item.answer ?? item.goal))}${item.options ? ` <span class="faint">options ${esc(JSON.stringify(item.options.map(val)))}</span>` : ''}</div>
+            <code>hint: ${esc((item.hint || []).join(' / '))}\nexplain: ${esc((item.explain || []).join(' / '))}${item.reteach ? '\nreteach: ' + esc(item.reteach.caption || item.reteach.lines?.join(' ')) : ''}</code>
+            ${probs.map(pr => `<div class="prob">${esc(pr)}</div>`).join('')}${warns.map(w => `<div class="warn">${esc(w)}</div>`).join('')}`;
+          box.appendChild(card);
+          if (item.widget) await mini(card.querySelector('.mw > div'), item);
+        }
+      }
+    }
+  }
+  const sum = `GEN SUMMARY ${spec} generators=${names.length} items=${total} problems=${bad} warnings=${warnN}`;
+  document.getElementById('summary').textContent = sum;
+  console.log(sum);
+</script>
+</body>
+</html>

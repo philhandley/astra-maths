@@ -1,0 +1,21 @@
+{
+  "id": "zz-test", "sector": "launchpad", "title": "Runner Test", "tagline": "Every step type", "covers": ["Y1-AS-2"],
+  "patch": { "name": "Runner Test", "icon": "tensframe" },
+  "steps": [
+    { "type": "look", "lines": ["Seven rockets on the pad."], "question": "How many will two more make?", "widget": "objects", "props": { "n": 7, "icon": "rocket", "arrange": "row" } },
+    { "type": "ask", "text": "Have you made bonds to 10 at school?" },
+    { "type": "guess", "prompt": "How many empty spaces?", "options": ["2", "3", "4"], "answer": 1, "reveal": ["3 spaces.", "7 and 3 make 10."], "widget": "tensframe", "props": { "count": 7, "readonly": true } },
+    { "type": "try", "widget": "tensframe", "props": { "count": 0, "twoColour": true },
+      "script": [
+        { "say": ["Put 7 gold counters on the frame."], "goal": { "a": 7, "b": 0 }, "then": ["{a} gold counters."] },
+        { "say": ["Now fill it up with blue."], "goal": { "count": 10 }, "then": ["{a} and {b} make {count}."] },
+        { "say": ["How many blue counters did you add?"], "input": "numpad", "answer": "{b}" },
+        { "say": ["Seven is made of three and..."], "input": "choice", "options": ["3", "4", "7"], "answer": "4", "caption": "7 = 3 + ?" }
+      ] },
+    { "type": "practise", "gen": ["demo.countDots", "demo.addFact", "demo.makeN"], "levels": [1, 1, 2], "items": [3, 4, 5], "intro": ["Your turn."] },
+    { "type": "question", "format": "wodb", "prompt": "Pick one. Then say why.", "options": [{ "label": "25" }, { "label": "52" }, { "label": "50" }, { "label": "15" }], "reveal": ["Every one can be the odd one out!", "52 is not in the 5s. 50 has no ones."], "followUp": "Can you find a reason for every one?" },
+    { "type": "error", "intro": ["{engineer} added these.", "Can you spot the slip?"], "lines": ["34 + 28", "30 + 20 = 50", "4 + 8 = 12", "50 + 12 = 52"], "wrong": 3, "fix": ["50 + 12 is 62.", "What would you tell {engineer}?"] },
+    { "type": "athome", "title": "Shoe pairs", "need": ["Shoes by the door"], "steps": ["Put them in pairs.", "Count in 2s."], "why": "Pairs are groups of 2.", "tiers": [2, 3] },
+    { "type": "finish", "debrief": ["What was your favourite part?", "What makes 10 with 6?"] }
+  ]
+}
