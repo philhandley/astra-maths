@@ -124,7 +124,7 @@
         total++;
         const { probs, warns } = await check(item);
         if (probs.length) { bad++; probs.forEach(pr => console.error('GEN PROBLEM', `${strand}.${nm} L${lv} #${i}:`, pr)); }
-        if (warns.length) { warnN++; if (!all) warns.forEach(w => console.warn('GEN WARN', `${strand}.${nm} L${lv} #${i}:`, w)); }
+        if (warns.length) { warnN++; if (!all || warnN <= 40) warns.forEach(w => console.warn('GEN WARN', `${strand}.${nm} L${lv} #${i}:`, w)); }
         if (render) {
           const card = document.createElement('div');
           card.className = 'it' + (probs.length ? ' bad' : '');

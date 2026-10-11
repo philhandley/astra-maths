@@ -22,6 +22,44 @@
     "n": 7,
     "icon": "rocket",
     "arrange": "row"
+   },
+   "options": [
+    "8",
+    "9",
+    "10"
+   ],
+   "answer": 1,
+   "reveal": [
+    "9 rockets.",
+    "7 and 2 more is 9."
+   ],
+   "revealProps": {
+    "n": 9
+   }
+  },
+  {
+   "type": "look",
+   "lines": [
+    "A crate of fuel cans.",
+    "3 rows of 5."
+   ],
+   "question": "Is it still 15 if we turn the crate?",
+   "widget": "blaster",
+   "props": {
+    "size": 5,
+    "rows": 3,
+    "readonly": true,
+    "lockSize": true
+   },
+   "show": {
+    "label": "Turn the crate",
+    "props": {
+     "flipped": true
+    },
+    "lines": [
+     "Now it is 5 rows of 3.",
+     "Still 15 cans!"
+    ]
    }
   },
   {
@@ -186,5 +224,12 @@
     "What makes 10 with 6?"
    ]
   }
- ]
+ ],
+ "warmup": {
+  "gen": "demo.addFact",
+  "level": 1,
+  "items": 3,
+  "mission": "l4",
+  "say": "First, a quick warm-up: adding."
+ }
 }

@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 STEP_TYPES = {'look', 'ask', 'guess', 'try', 'practise', 'question', 'error', 'athome', 'finish'}
-SUB_KEYS = {'say', 'goal', 'input', 'answer', 'options', 'set', 'caption', 'then', 'hint', 'unit', 'prefix'}
+SUB_KEYS = {'say', 'goal', 'input', 'answer', 'options', 'set', 'caption', 'then', 'hint', 'hintProps', 'explain', 'unit', 'prefix'}
 INPUTS = {'numpad', 'choice'}
 
 errors, warns = [], []
@@ -84,6 +84,14 @@ def check_mission(path, curriculum, sector_ids):
     for c in m.get('covers', []):
         if c not in curriculum:
             err(mid, f'covers ID "{c}" not in content/curriculum.json (DfE codes use an en dash, e.g. 2MD–1)')
+    w = m.get('warmup')
+    if w is not None:
+        if not isinstance(w, dict) or gen_levels(w.get('gen')) in (None, 0):
+            err(mid, f'warmup generator "{(w or {}).get("gen")}" not found')
+        elif w.get('level', 1) > gen_levels(w.get('gen')):
+            err(mid, 'warmup level above generator max')
+        if isinstance(w, dict) and w.get('mission') and not (ROOT / 'content' / 'missions' / f"{w['mission']}.json").exists():
+            err(mid, f'warmup mission "{w["mission"]}" not found')
     steps = m.get('steps', [])
     if not isinstance(steps, list) or not steps:
         err(mid, 'steps must be a non-empty list')
@@ -108,6 +116,23 @@ def check_mission(path, curriculum, sector_ids):
                 err(mid, f'{where}: needs lines')
             if s.get('widget') and not widget_exists(s['widget']):
                 err(mid, f'{where}: widget "{s["widget"]}" not found')
+            q = (s.get('question') or '').strip()
+            opts = s.get('options')
+            if opts is not None:
+                if not (isinstance(opts, list) and len(opts) >= 2):
+                    err(mid, f'{where}: options needs 2+ entries')
+                a = s.get('answer')
+                if a is not None and not (isinstance(a, int) and 0 <= a < len(opts or [])):
+                    err(mid, f'{where}: answer must be an option index')
+                if not s.get('reveal'):
+                    err(mid, f'{where}: options need reveal lines')
+            elif s.get('show') is not None:
+                sh = s['show']
+                if not isinstance(sh, dict) or not (sh.get('lines') or sh.get('props') or sh.get('big')):
+                    err(mid, f'{where}: show needs lines, props or big')
+                check_lines(mid, where + ' show', sh.get('lines') if isinstance(sh, dict) else None)
+            elif q.endswith('?'):
+                err(mid, f'{where}: asks "{q}" but gives no way to answer (add options + answer + reveal, or show)')
         elif t == 'ask':
             if not s.get('text'):
                 err(mid, f'{where}: needs text')
@@ -133,6 +158,11 @@ def check_mission(path, curriculum, sector_ids):
                 if extra:
                     warn(mid, f'{w2}: unknown keys {sorted(extra)}')
                 check_lines(mid, w2 + ' say', sub.get('say'))
+                if 'goal' in sub and not sub.get('hint'):
+                    warn(mid, f'{w2}: goal step has no hint for the Help button')
+                says = sub.get('say') or []
+                if says and str(says[-1]).strip().endswith('?') and 'input' not in sub and 'goal' not in sub:
+                    warn(mid, f'{w2}: asks "{says[-1]}" with no input or goal (Finn cannot answer it on screen)')
                 check_lines(mid, w2 + ' then', sub.get('then'))
                 if 'input' in sub:
                     if sub['input'] not in INPUTS:
@@ -205,6 +235,8 @@ def check_mission(path, curriculum, sector_ids):
         elif t == 'finish':
             if not s.get('debrief'):
                 warn(mid, f'{where}: no debrief questions')
+    if 'warmup' not in m and m.get('sector') != 'launchpad':
+        warn(mid, 'no warmup (the "Not yet" path has no warm-up)')
     tier1 = [s for s in steps if not s.get('tiers') or 1 in s['tiers']]
     if len(tier1) < 4:
         warn(mid, f'only {len(tier1)} steps at tier 1')

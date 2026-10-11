@@ -79,7 +79,7 @@ export function mount(el, props = {}, ctx = {}) {
   return {
     getState() { return { /* plain JSON, numbers as numbers */ }; },
     update(newProps) { /* merge into props, redraw, keep listeners; must not call onChange */ },
-    showAnswer(answer) { /* optional: animate the correct state for a re-teach */ },
+    showAnswer(answer) { /* optional: act out the answer for "Show me". Receives a number, or a goal object exactly as written in a try sub-step (e.g. { count: 10, a: 6 }, { value: 30 }, { turns: 2 }). Ignore answers that don't fit this widget; fire onChange when done. */ },
     destroy() { /* remove listeners, timers, rAF, observers; empty el */ },
   };
 }
@@ -111,13 +111,13 @@ So design state keys that make natural goals: `value`, `total`, `rows`, `size`, 
 
 | Widget | Owner | Key props | State |
 |---|---|---|---|
-| objects | core | `n`, `icon` (art name or `dot`), `arrange` (`row`, `rows`, `groups`, `scatter`, `dice`, `line`), `perRow`, `groups` (array of sizes), `colours` (array of counts per colour: red, yellow, blue, green), `crossed` (cross out the last k), `tappable` | `n`, `tapped` |
+| objects | core | `n`, `icon` (art name or `dot`), `arrange` (`row`, `rows`, `groups`, `scatter`, `dice`, `line`), `perRow`, `groups` (array of sizes), `colours` (array of counts per colour: red, yellow, blue, green), `crossed` (cross out the last k), `tappable`, `groupLabels` (text under each group, e.g. running totals ["10","20","30"]), `mirror` (`'alternate'` flips every second item, for left and right boots) | `n`, `tapped` |
 | tensframe | core | `count`, `frames` (1 or 2), `colours` ([red, yellow] counts), `twoColour` (show a brush toggle), `interactive`, `max` | `count`, `a`, `b` |
 | numberline | number | `min`, `max`, `step`, `labels` (`all`, `ends`, `tens`, `fives`, `none`, or an array), `mode` (`display`, `hop`, `place`), `hopSize`, `start`, `hops` (array of `{from, to}` to draw), `marks` (values to dot), `value`, `markerArt` | `value`, `hops` (count), `pos` (last hop end), `placed` |
 | hundred | number | `start` (0 or 1), `highlight` (array), `pattern` (`{every: n, from: k}`), `hide` (array of numbers shown blank), `mode` (`display`, `tap`), `rows` | `selected` (last tapped), `taps` (array) |
 | placevalue | number | `tens`, `ones`, `hundreds`, `showHundreds`, `interactive`, `showDigits`, `showValue`, `showExpanded`, `max` | `hundreds`, `tens`, `ones`, `value` |
-| partwhole | addsub | `whole`, `parts` ([a, b] or [a, b, c]), `hide` (`whole`, 0, 1, 2 or null), `counters` | `whole`, `parts` |
-| bar | addsub | `top` (array of `{v, label}`), `bottom` (array of `{v, label}`), `unknown` (label shown as ?) | none |
+| partwhole | addsub | `whole`, `parts` ([a, b] or [a, b, c]), `hide` (`whole`, 0, 1, 2 or null), `counters`, `facts` (write the four facts beside it) | `whole`, `parts` |
+| bar | addsub | `top` (array of `{v, label}`), `bottom` (array of `{v, label}`), `unknown` (label shown as ?), `colours` | none |
 | balance | addsub | `left` (string like `"3 + 4"`), `right` (string), `leftValue`, `rightValue` | none |
 | blocks | addsub | `a`, `b`, `op` (`+` or `-`), `interactive` (exchange tens and ones) | `tens`, `ones`, `value`, `exchanged` |
 | blaster | muldiv | `size`, `rows`, `maxRows`, `maxSize`, `lockSize`, `caption`, `flip`, `interactive` | `size`, `rows`, `total`, `flipped` |
@@ -126,10 +126,10 @@ So design state keys that make natural goals: `value`, `total`, `rows`, `size`, 
 | clock | measure | `h`, `m`, `interactive`, `snap` (60, 30, 15, 5), `digital` | `h`, `m`, `minutes` (h*60+m, 12-hour) |
 | coins | measure | `tray` (array of coin names), `purse` (array), `showTotal`, `interactive`, `price` | `total` (pence), `count`, `items` |
 | measure | measure | `tool` (`ruler`, `scales`, `jug`, `thermometer`), `value`, `unit`, `max`, `step`, `interactive`, `object` | `value` |
-| shapes2d | geometry | `shape`, `rotate`, `tap` (`sides`, `vertices`, null), `fold` | `sides`, `vertices`, `symmetric`, `folded` |
-| shapes3d | geometry | `shape`, `tap` (`faces`, `edges`, `vertices`, null), `autoRotate` | `faces`, `edges`, `vertices` |
-| rover | geometry | `cols`, `rows`, `start` (`{x, y, dir}`), `target`, `rocks`, `controls` | `x`, `y`, `dir`, `turns`, `moves`, `atTarget` |
-| charts | geometry | `kind` (`tally`, `pictogram`, `block`, `table`), `cats` (array of `{label, icon, value}`), `key`, `interactive`, `max` | `values` (array) |
+| shapes2d | geometry | `shape`, `rotate`, `tap` (`sides`, `vertices`, null), `fold`, `shapes` (each may have `dim`, `badge`), `showAll` | `sides`, `vertices`, `symmetric`, `folded` |
+| shapes3d | geometry | `shape`, `tap` (`faces`, `edges`, `vertices`, null), `autoRotate`, `highlight`, `print` (draw the highlighted face on paper) | `faces`, `edges`, `vertices` |
+| rover | geometry | `cols`, `rows`, `start` (`{x, y, dir}`), `target`, `rocks`, `controls`, `ahead` (light the squares ahead) | `x`, `y`, `dir`, `turns`, `moves`, `atTarget` |
+| charts | geometry | `kind` (`tally`, `pictogram`, `block`, `table`), `cats` (array of `{label, icon, value}`), `key`, `interactive`, `max`, `highlight` (category index or list) | `values` (array) |
 
 ### 3.4 CSS
 Do not edit `css/app.css`. Put widget CSS in a string and call `injectCSS('w-<name>', css)` at mount. Prefix classes with `w-<name>`. App tokens are available as CSS variables: `--s-ink`, `--s-ink-2`, `--s-ink-3`, `--s-line`, `--surface`, `--surface-2`, `--red`, `--yellow`, `--blue`, `--green`, `--orange`, `--pink`, `--purple`, `--font-display`, `--font-body`. Do not name widget classes `.btn`, `.card`, `.tile`, `.dots` or `.opt`: the app styles those.
@@ -167,6 +167,7 @@ Mission JSON refers to it as `"gen": "number.readTensOnes"` (file name, dot, exp
   hint: ['Count the tens: 10, 20, 30, 40.'],     // first "Not yet": shown and spoken
   hintProps: { showValue: true },   // optional: merged into widget props on the first "Not yet"
   hintWidget: { widget: 'tensframe', props: {...} },  // optional: show this widget if the item had none
+  answerProps: { colours: [7, 3] },  // optional: applied with update() on "Show me" instead of showAnswer()
   explain: ['4 tens is 40.', '40 and 7 is 47.'], // second "Not yet": shown with the answer
   fact: '+:5,7',                    // optional fluency key from facts.js
   reteach: { ...a smaller item },   // optional: asked after explain, before moving on
@@ -221,7 +222,16 @@ If an item is one basic fact, set `fact: factKey(...)`. The core records it into
 ```
 `"art": "rocket"` instead of a widget shows one big icon; `"big": "47"` shows big text instead.
 
-**ask**: "Have you done this at school?" Two buttons. "Yes, I know a bit" jumps to the next `practise` step; "Not yet" carries on.
+**A look must never ask a question Finn cannot answer on screen.** If it has a `question` ending in "?", it must also have one of:
+- **options** (answered like a guess: Finn taps, Dad taps, Reveal): `"options": ["8", "10", "12"], "answer": 1, "reveal": ["10 boots.", "5 twos make 10."], "revealProps": { ... }` (`revealProps` is applied to the widget at the reveal, so the picture shows the answer: highlight the groups, add the extra items, flip the array).
+- **show** (a talk question acted out by a button): `"show": { "label": "Turn the crate", "props": { "flipped": true }, "lines": ["Now it is 5 rows of 3.", "Still 15 cans!"] }`. `props` is applied with `update()`; `big` and `caption` may replace the big text or caption. The tutor says "Talk about it, then tap <label>." automatically.
+The picture must show what the question asks about (if it asks about boots, draw boots). `tools/check_content.py` reports any look question without options or show as an error, and any try line ending in "?" with no `input` or `goal` as a warning.
+
+**ask**: "Have you done this at school?" Two buttons. "Yes, I know a bit" jumps to the next `practise` step. "Not yet" runs the mission's **warm-up** if it has one, then carries on into the teaching.
+
+**Mission-level `warmup`** (strongly recommended): `"warmup": { "gen": "addsub.bondsTo", "level": 1, "items": 3, "params": { "target": 10 }, "mission": "l4", "say": "First, a quick warm-up: bonds to 10." }`. It practises the skill this mission builds on (usually from an earlier mission). If Finn gets most of them first time, he carries on; if not, Nova offers to do the earlier `mission` first.
+
+**Help on every question.** Every practice item and every try input has a Help button: the first tap shows the item's `hint` (and applies `hintProps` / `hintWidget`), the second tap ("Show me") shows the `explain` lines and the answer, then the `reteach` item if there is one. So `hint` must be a genuine nudge that points at the picture, and `explain` must show the method (the DfE sentence stems), not just the answer. Every goal sub-step in a try step has a Help button too: it shows the sub-step's `hint`, or repeats the instruction if there is none, so write a `hint` for every goal sub-step.
 ```json
 { "type": "ask", "text": "Have you made equal groups at school?" }
 ```
@@ -247,7 +257,7 @@ Guess steps may also have `"revealProps"`: props applied to the widget when the 
     { "set": { "size": 2, "rows": 0 }, "say": ["New size: 2.", "Blast 4 times."], "goal": { "rows": 4 } }
   ] }
 ```
-Sub-step keys: `say` (lines), `goal` (widget state to reach), `input` + `answer` (+ `options` for choice) to ask a question, `set` (props applied with `update()` before the sub-step), `caption` (big text above the widget), `then` (lines after success), `hint` (lines offered by the Help button). A sub-step with neither `goal` nor `input` shows a "Got it" button. `answer` may be a template string like `"{total}"`.
+Sub-step keys: `say` (lines), `goal` (widget state to reach), `hint` (Help tap 1) with optional `hintProps` (applied to the widget on that tap), `explain` (Help tap 2, "Show me", which also calls the widget's `showAnswer(goal)` if it has one), `input` + `answer` (+ `options` for choice) to ask a question, `set` (props applied with `update()` before the sub-step), `caption` (big text above the widget), `then` (lines after success), `hint` (lines offered by the Help button). A sub-step with neither `goal` nor `input` shows a "Got it" button. After "Show me" on a goal sub-step the runner stops waiting, acts out the goal with `showAnswer(goal)` and shows a Next button, so Finn can read the explanation and is never stuck. `hintProps` last for one sub-step only: the runner puts those keys back to their earlier values before the next sub-step starts. `answer` may be a template string like `"{total}"`.
 
 **practise**: generated items with the re-teach loop.
 ```json

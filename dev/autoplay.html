@@ -47,7 +47,10 @@
         if (W.location.hash !== `#/m/${id}/${tier}/${i}`) { W.location.hash = `#/m/${id}/${tier}/${i}`; await sl(250); }
         await sl(250);
         try {
-          if (s.type === 'guess') {
+          if (s.type === 'look' && s.show) {
+            (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => b.textContent.trim().length)))?.click();
+            await waitFor(() => D().querySelector('.next-btn.glow'), 8000);
+          } else if (s.type === 'guess' || (s.type === 'look' && s.options)) {
             const o = await waitFor(() => D().querySelectorAll('.console .opt').length && D().querySelectorAll('.console .opt'));
             o[0].click(); await sl(80); o[o.length - 1].click(); await sl(80);
             (await waitFor(() => [...D().querySelectorAll('.tutor .actions .btn')].find(b => /Reveal/.test(b.textContent))))?.click();
